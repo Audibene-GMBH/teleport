@@ -166,7 +166,7 @@ func fido2Login(
 		}
 		// Note that "uv" fails for PIN-capable devices with an empty PIN.
 		// This is handled by runOnFIDO2Devices.
-		if uv {
+		if uv && (info.bioEnroll || pin == "") {
 			opts.UV = libfido2.True
 		}
 		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
