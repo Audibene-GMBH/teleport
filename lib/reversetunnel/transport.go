@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -87,7 +88,11 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	addr, err := t.Resolver(ctx)
 	if err != nil {
-		t.Log.Errorf("Failed to resolve tunnel address %v", err)
+		if strings.Contains(err.Error(), "certificate is not trusted") {
+			t.Log.Errorf("Failed to connect to the target proxy. Error: x509: certificate signed by unknown authority. Your proxy certificate is not trusted or expired. Please update certificate or follow this guide for self-signed certs: https://goteleport.com/docs/getting-started/self-signed#node")
+		} else {
+			t.Log.Errorf("Failed to resolve tunnel address %v", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 

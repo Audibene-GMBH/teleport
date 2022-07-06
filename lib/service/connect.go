@@ -103,7 +103,11 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 				process.log.Errorf("Failed to perform system role assertions: %v", assertionErr)
 			}
 		} else {
-			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, err)
+			if strings.Contains(err.Error(), "certificate is not trusted") {
+				process.log.Errorf("%v failed to establish connection to cluster: Failed to connect to the target proxy. Error: x509: certificate signed by unknown authority. Your proxy certificate is not trusted or expired. Please update certificate or follow this guide for self-signed certs: https://goteleport.com/docs/getting-started/self-signed#node.", role)
+			} else {
+				process.log.Errorf("%v failed to establish connection to cluster: %v.", role, err)
+			}
 		}
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.
