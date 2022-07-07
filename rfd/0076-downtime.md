@@ -50,6 +50,10 @@ In proxy peering mode, reverse tunnel agents become fully available as soon as t
 
 The current implementation of CA rotations involves restarting every component in the cluster after each phase (other than `init`); as such, connectivity loss for reverse tunnel agents is inevitable (requiring potentially more effort than a full shutdown and startup, as newly restarted agents might initially connect to proxies that haven't restarted yet), and the fact that all Auths are restarted means that at least some disruption is to be expected, even for agents in direct connection mode. As most of the best practices around maintaining high availability and low downtime involve rolling upgrades and not restarting Auth and Proxy in place, it's clear that the current implementation of CA rotations is problematic. It should be possible to swap out credentials without a full restart on a rotation, and that would make most of the availability concerns around CA rotations disappear.
 
+## Best practices
+
+TBD
+
 ## Potential future steps
 
 * Remove the old-style `session.Session`: already underway, will be completed in v11.
@@ -60,3 +64,5 @@ The current implementation of CA rotations involves restarting every component i
 * Don't close the proxy peering listeners when shutting down rather than restarting.
 * Deprecate in-place restarts for Proxies in proxy peering mode.
 * Restartless CA rotations: requires engineering effort, but would simplify things around the initialization code of `TeleportProcess` quite a bit. Would require some input from security, to decide what to do about preexisting connections after old certs become untrusted.
+* Write user-facing docs regarding best practices around rollouts and upgrades with regards to downtime.
+* Define scenarios that warrant specific test cases (and write tests for those scenarios).
