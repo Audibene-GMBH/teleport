@@ -123,3 +123,18 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 
 	return apiGateway, nil
 }
+
+// TODO: Add a comment.
+func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLocalPortRequest) (*api.Gateway, error) {
+	gateway, err := s.DaemonService.SetGatewayLocalPort(ctx, req.GatewayUri, req.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiGateway, err := newAPIGateway(gateway)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apiGateway, nil
+}

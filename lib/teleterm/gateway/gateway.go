@@ -31,12 +31,12 @@ import (
 )
 
 // New creates an instance of Gateway
-func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
+func New(cfg Config, cliCommandProvider CLICommandProvider, tcpPortAllocator TCPPortAllocator) (*Gateway, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", cfg.LocalAddress, cfg.LocalPort))
+	listener, err := tcpPortAllocator.Listen(cfg.LocalAddress, cfg.LocalPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -97,6 +97,7 @@ func New(cfg Config, cliCommandProvider CLICommandProvider) (*Gateway, error) {
 		closeCancel:        closeCancel,
 		localProxy:         localProxy,
 		cliCommandProvider: cliCommandProvider,
+		tcpPortAllocator:   tcpPortAllocator,
 	}
 
 	ok = true
@@ -123,6 +124,78 @@ func (g *Gateway) Serve() error {
 	}
 
 	g.Log.Info("Gateway has closed.")
+
+	return nil
+}
+
+func (g *Gateway) SetLocalPort(port string) error {
+	g.Close()
+
+	listener, err := g.tcpPortAllocator.Listen(g.Config.LocalAddress, port)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	closeContext, closeCancel := context.WithCancel(context.Background())
+	// make sure the listener is closed if gateway creation failed
+	ok := false
+	defer func() {
+		if ok {
+			return
+		}
+
+		closeCancel()
+		if err := listener.Close(); err != nil {
+			g.Config.Log.WithError(err).Warn("Failed to close listener.")
+		}
+	}()
+
+	// retrieve automatically assigned port number
+	_, localPort, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	protocol, err := alpncommon.ToALPNProtocol(g.Config.Protocol)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	address, err := utils.ParseAddr(g.Config.WebProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cert, err := tls.LoadX509KeyPair(g.Config.CertPath, g.Config.KeyPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
+		InsecureSkipVerify: g.Config.Insecure,
+		RemoteProxyAddr:    g.Config.WebProxyAddr,
+		Protocols:          []alpncommon.Protocol{protocol},
+		Listener:           listener,
+		ParentContext:      closeContext,
+		SNI:                address.Host(),
+		Certs:              []tls.Certificate{cert},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	g.Config.LocalPort = localPort
+	g.localProxy = localProxy
+	g.closeCancel = closeCancel
+	g.closeContext = closeContext
+
+	ok = true
+
+	go func() {
+		if err := g.Serve(); err != nil {
+			g.Log.WithError(err).Warn("Failed to restart gateway after changing port.")
+		}
+	}()
 
 	return nil
 }
@@ -156,9 +229,25 @@ type Gateway struct {
 	closeContext       context.Context
 	closeCancel        context.CancelFunc
 	cliCommandProvider CLICommandProvider
+	tcpPortAllocator   TCPPortAllocator
 }
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
 	GetCommand(gateway *Gateway) (string, error)
+}
+
+type TCPPortAllocator interface {
+	Listen(localAddress, port string) (net.Listener, error)
+}
+
+type NetTCPPortAllocator struct{}
+
+func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", localAddress, port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listener, nil
 }
