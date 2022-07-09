@@ -1338,6 +1338,7 @@ func TestPTY(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
+
 	se, err := f.ssh.clt.NewSession()
 	require.NoError(t, err)
 	defer se.Close()

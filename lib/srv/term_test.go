@@ -27,6 +27,8 @@ import (
 )
 
 func TestGetOwner(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		inUserLookup  LookupUser
 		inGroupLookup LookupGroup

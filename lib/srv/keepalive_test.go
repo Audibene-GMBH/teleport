@@ -28,6 +28,8 @@ import (
 )
 
 func TestServerClose(t *testing.T) {
+	t.Parallel()
+
 	doneCh := make(chan bool, 1)
 	closeContext, closeCancel := context.WithCancel(context.Background())
 
@@ -65,6 +67,8 @@ func TestServerClose(t *testing.T) {
 }
 
 func TestLoopClose(t *testing.T) {
+	t.Parallel()
+
 	doneCh := make(chan bool, 1)
 	closeContext, closeCancel := context.WithCancel(context.Background())
 
