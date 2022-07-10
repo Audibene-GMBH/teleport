@@ -37,6 +37,7 @@ import (
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if IsReexec() {
@@ -50,8 +51,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestOSCommandPrep(t *testing.T) {
-	t.Parallel()
-
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
@@ -135,8 +134,6 @@ func TestOSCommandPrep(t *testing.T) {
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {
-	t.Parallel()
-
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
