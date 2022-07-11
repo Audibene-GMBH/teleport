@@ -2829,7 +2829,7 @@ func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) 
 		&types.WhereExpr{Equals: types.WhereExpr2{
 			L: &types.WhereExpr{Field: events.SessionEventID},
 			R: &types.WhereExpr{Literal: sid.String()},
-		}},
+		}}, sid.String(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3936,7 +3936,7 @@ func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace strin
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) (events []apievents.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
 	if cond != nil {
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
@@ -3947,7 +3947,7 @@ func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit in
 	}
 
 	// TODO(codingllama): Refactor cond out of SearchSessionEvents and simplify signature.
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond)
+	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

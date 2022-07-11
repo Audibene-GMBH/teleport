@@ -31,6 +31,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -39,8 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -62,9 +63,11 @@ type suiteBase struct {
 }
 
 func (s *suiteBase) SetUpSuite(c *check.C) {
-	testEnabled := os.Getenv(teleport.AWSRunTests)
-	if ok, _ := strconv.ParseBool(testEnabled); !ok {
-		c.Skip("Skipping AWS-dependent test suite.")
+	if false {
+		testEnabled := os.Getenv(teleport.AWSRunTests)
+		if ok, _ := strconv.ParseBool(testEnabled); !ok {
+			c.Skip("Skipping AWS-dependent test suite.")
+		}
 	}
 
 	backend, err := memory.New(memory.Config{})
@@ -209,7 +212,7 @@ func (s *DynamoeventsSuite) TestRFD24Migration(c *check.C) {
 	end := start.Add(time.Hour * time.Duration(24*11))
 	var eventArr []event
 	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{eventTypes: []string{"test.event"}})
+		eventArr, _, err = s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{eventTypes: []string{"test.event"}}, "")
 		return err
 	})
 	c.Assert(err, check.IsNil)
@@ -263,7 +266,7 @@ func (s *DynamoeventsSuite) TestFieldsMapMigration(c *check.C) {
 	err = s.log.convertFieldsToDynamoMapFormat(ctx)
 	c.Assert(err, check.IsNil)
 
-	eventArr, _, err := s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{})
+	eventArr, _, err := s.log.searchEventsRaw(start, end, apidefaults.Namespace, 1000, types.EventOrderAscending, "", searchEventsFilter{}, "")
 	c.Assert(err, check.IsNil)
 
 	for _, event := range eventArr {
@@ -363,6 +366,10 @@ func TestFromWhereExpr(t *testing.T) {
 		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
 		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
 	}, params)
+}
+
+func (s *DynamoeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	s.SearchSessionEvensBySessionID(c)
 }
 
 func TestConfig_SetFromURL(t *testing.T) {

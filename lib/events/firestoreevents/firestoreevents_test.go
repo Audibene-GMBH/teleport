@@ -59,7 +59,6 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 
 	config.Clock = fakeClock
 	config.UIDGenerator = utils.NewFakeUID()
-
 	log, err := New(config)
 
 	c.Assert(err, check.IsNil)
@@ -106,4 +105,8 @@ func (s *FirestoreeventsSuite) TestSessionEventsCRUD(c *check.C) {
 
 func (s *FirestoreeventsSuite) TestPagination(c *check.C) {
 	s.EventPagination(c)
+}
+
+func (s *FirestoreeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	s.SearchSessionEvensBySessionID(c)
 }
