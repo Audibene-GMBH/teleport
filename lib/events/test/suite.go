@@ -20,7 +20,6 @@ package test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -258,14 +257,6 @@ func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil, "")
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.HasLen, 0)
-}
-
-func marshal(f events.EventFields) []byte {
-	data, err := json.Marshal(f)
-	if err != nil {
-		panic(err)
-	}
-	return data
 }
 
 func (s *EventsSuite) SearchSessionEvensBySessionID(c *check.C) {
