@@ -856,6 +856,10 @@ func reverseStrings(slice []string) []string {
 // searchEventsRaw is a low level function for searching for events. This is kept
 // separate from the SearchEvents function in order to allow tests to grab more metadata.
 func (l *Log) searchEventsRaw(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]event, string, error) {
+	if !l.readyForQuery.Load() {
+		return nil, "", trace.Wrap(notReadyYetError{})
+	}
+
 	checkpoint, err := getCheckpointFromStartKey(startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
