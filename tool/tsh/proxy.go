@@ -219,7 +219,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 
 	if !sp.tlsRouting {
-		conn, err := net.Dial("tcp", remoteProxyAddr)
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -238,7 +238,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 		ServerName:         sp.proxyHost,
 	}
 
-	conn, err := tls.Dial("tcp", remoteProxyAddr, tlsConfig)
+	conn, err := (&tls.Dialer{Config: tlsConfig}).DialContext(ctx, "tcp", remoteProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
