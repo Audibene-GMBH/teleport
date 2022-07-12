@@ -1,16 +1,18 @@
-// Copyright 2021 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+Copyright 2021 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package proxy
 
@@ -30,17 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
-	"k8s.io/client-go/transport"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -53,15 +44,19 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
+	"k8s.io/client-go/transport"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
-
-type ForwarderSuite struct{}
-
-var _ = check.Suite(ForwarderSuite{})
-
-func Test(t *testing.T) {
-	check.TestingT(t)
-}
 
 var (
 	identity = auth.WrapIdentity(tlsca.Identity{
@@ -82,9 +77,9 @@ var (
 	})
 )
 
-func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
+func TestRequestCertificate(t *testing.T) {
 	cl, err := newMockCSRClient()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			Keygen:     testauthority.New(),
@@ -93,7 +88,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 		log: logrus.New(),
 	}
 	user, err := types.NewUser("bob")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	ctx := authContext{
 		teleportCluster: teleportClusterClient{
 			name: "site a",
@@ -106,22 +101,22 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	}
 
 	b, err := f.requestCertificate(ctx)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	// All fields except b.key are predictable.
-	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.lastCert.Raw)
+	require.Empty(t, cmp.Diff(b.Certificates[0].Certificate[0], cl.lastCert.Raw))
 
 	// Check the KubeCSR fields.
-	c.Assert(cl.gotCSR.Username, check.DeepEquals, ctx.User.GetName())
-	c.Assert(cl.gotCSR.ClusterName, check.DeepEquals, ctx.teleportCluster.name)
+	require.Empty(t, cmp.Diff(cl.gotCSR.Username, ctx.User.GetName()))
+	require.Empty(t, cmp.Diff(cl.gotCSR.ClusterName, ctx.teleportCluster.name))
 
 	// Parse x509 CSR and check the subject.
 	csrBlock, _ := pem.Decode(cl.gotCSR.CSR)
-	c.Assert(csrBlock, check.NotNil)
+	require.NotNil(t, csrBlock)
 	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
-	c.Assert(err, check.IsNil)
-	c.Assert(*idFromCSR, check.DeepEquals, ctx.UnmappedIdentity.GetIdentity())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(*idFromCSR, ctx.UnmappedIdentity.GetIdentity()))
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -534,7 +529,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
+func TestSetupImpersonationHeaders(t *testing.T) {
 	tests := []struct {
 		desc          string
 		kubeUsers     []string
@@ -630,7 +625,7 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		c.Log(tt.desc)
+		t.Log(tt.desc)
 
 		err := setupImpersonationHeaders(
 			logrus.NewEntry(logrus.New()),
@@ -641,14 +636,14 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			},
 			tt.inHeaders,
 		)
-		c.Log("got error:", err)
-		c.Assert(err != nil, check.Equals, tt.wantErr)
+		t.Log("got error:", err)
+		require.Equal(t, err != nil, tt.wantErr)
 		if err == nil {
 			// Sort header values to get predictable ordering.
 			for _, vals := range tt.inHeaders {
 				sort.Strings(vals)
 			}
-			c.Assert(tt.inHeaders, check.DeepEquals, tt.wantHeaders)
+			require.Empty(t, cmp.Diff(tt.inHeaders, tt.wantHeaders))
 		}
 	}
 }

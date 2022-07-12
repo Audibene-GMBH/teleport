@@ -22,22 +22,19 @@ import (
 	"os"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/check.v1"
+
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/transport"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-type AuthSuite struct{}
-
-var _ = check.Suite(AuthSuite{})
-
-func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
+func TestCheckImpersonationPermissions(t *testing.T) {
 	tests := []struct {
 		desc             string
 		sarErr           error
@@ -66,7 +63,7 @@ func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
 	}
 
 	for _, tt := range tests {
-		c.Log(tt.desc)
+		t.Log(tt.desc)
 		mock := &mockSARClient{
 			err:              tt.sarErr,
 			allowedVerbs:     tt.allowedVerbs,
@@ -74,9 +71,9 @@ func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
 		}
 		err := checkImpersonationPermissions(context.Background(), "test", mock)
 		if tt.wantErr {
-			c.Assert(err, check.NotNil)
+			require.NotNil(t, err)
 		} else {
-			c.Assert(err, check.IsNil)
+			require.NoError(t, err)
 		}
 	}
 }
