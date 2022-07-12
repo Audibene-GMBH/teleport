@@ -133,7 +133,7 @@ type HostUserManagement struct {
 
 var _ HostUsers = &HostUserManagement{}
 
-var sudoersSanitizationMatcher = regexp.MustCompile(`\.|~`)
+var sudoersSanitizationMatcher = regexp.MustCompile(`[\.~\/]`)
 
 // sanitizeSudoersName replaces occurrences of `.` and `~` with
 // underscores as `sudo` will not read files including these
