@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -33,18 +33,14 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestFirestoreevents(t *testing.T) { check.TestingT(t) }
-
-type FirestoreeventsSuite struct {
-	log *Log
-	test.EventsSuite
+type firestoreContext struct {
+	log   *Log
+	suite test.EventsSuite
 }
 
-var _ = check.Suite(&FirestoreeventsSuite{})
-
-func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
+func setupFirestoreContext(t *testing.T) *firestoreContext {
 	if !emulatorRunning() {
-		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
+		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
 
 	fakeClock := clockwork.NewFakeClock()
@@ -61,12 +57,73 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 	config.UIDGenerator = utils.NewFakeUID()
 
 	log, err := New(config)
+	require.NoError(t, err)
 
-	c.Assert(err, check.IsNil)
-	s.log = log
-	s.EventsSuite.Log = log
-	s.EventsSuite.Clock = fakeClock
-	s.EventsSuite.QueryDelay = time.Second * 5
+	return &firestoreContext{
+		log: log,
+		suite: test.EventsSuite{
+			Log:        log,
+			Clock:      fakeClock,
+			QueryDelay: time.Second * 5,
+		},
+	}
+}
+
+func (tt *firestoreContext) Close() error {
+	if tt.log != nil {
+		if err := tt.log.Close(); err != nil {
+			return tt.log.Close()
+		}
+	}
+
+	return nil
+}
+
+func (tt *firestoreContext) Cleanup(t *testing.T) {
+	ctx := context.Background()
+
+	// Delete all documents.
+	docSnaps, err := tt.log.svc.Collection(tt.log.CollectionName).Documents(ctx).GetAll()
+	require.NoError(t, err)
+	if len(docSnaps) == 0 {
+		return
+	}
+	batch := tt.log.svc.Batch()
+	for _, docSnap := range docSnaps {
+		batch.Delete(docSnap.Ref)
+	}
+	_, err = batch.Commit(ctx)
+	require.NoError(t, err)
+}
+
+func TestSessionEventsCRUD(t *testing.T) {
+	tt := setupFirestoreContext(t)
+	t.Cleanup(func() {
+		tt.Cleanup(t)
+		tt.Close()
+	})
+
+	tt.suite.SessionEventsCRUD(t)
+}
+
+func TestPagination(t *testing.T) {
+	tt := setupFirestoreContext(t)
+	t.Cleanup(func() {
+		tt.Cleanup(t)
+		tt.Close()
+	})
+
+	tt.suite.EventPagination(t)
+}
+
+func TestSearchSessionEvensBySessionID(t *testing.T) {
+	tt := setupFirestoreContext(t)
+	t.Cleanup(func() {
+		tt.Cleanup(t)
+		tt.Close()
+	})
+
+	tt.suite.SearchSessionEvensBySessionID(t)
 }
 
 func emulatorRunning() bool {
@@ -76,38 +133,4 @@ func emulatorRunning() bool {
 	}
 	con.Close()
 	return true
-}
-
-func (s *FirestoreeventsSuite) TearDownSuite(c *check.C) {
-	if s.log != nil {
-		s.log.Close()
-	}
-}
-
-func (s *FirestoreeventsSuite) TearDownTest(c *check.C) {
-	// Delete all documents.
-	ctx := context.Background()
-	docSnaps, err := s.log.svc.Collection(s.log.CollectionName).Documents(ctx).GetAll()
-	c.Assert(err, check.IsNil)
-	if len(docSnaps) == 0 {
-		return
-	}
-	batch := s.log.svc.Batch()
-	for _, docSnap := range docSnaps {
-		batch.Delete(docSnap.Ref)
-	}
-	_, err = batch.Commit(ctx)
-	c.Assert(err, check.IsNil)
-}
-
-func (s *FirestoreeventsSuite) TestSessionEventsCRUD(c *check.C) {
-	s.SessionEventsCRUD(c)
-}
-
-func (s *FirestoreeventsSuite) TestPagination(c *check.C) {
-	s.EventPagination(c)
-}
-
-func (s *FirestoreeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
-	s.SearchSessionEvensBySessionID(c)
 }
