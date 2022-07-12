@@ -3245,3 +3245,149 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 		})
 	}
 }
+
+func TestListResources_WithRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	const (
+		nodeCount = 5_000
+		denied    = "denied"
+		allowed   = "allowed"
+	)
+
+	// Create user with full access
+	allowedUser, role, err := CreateUserAndRole(srv.Auth(), allowed, nil)
+	require.NoError(t, err)
+	role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// create a user with limited access
+	roleA, err := types.NewRoleV3("deny-a", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{allowedUser.GetName(), denied},
+			NodeLabels: types.Labels{
+				"*": []string{types.Wildcard},
+			},
+		},
+		Deny: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"pool": []string{"a"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().UpsertRole(ctx, roleA)
+	require.NoError(t, err)
+
+	roleB, err := types.NewRoleV3("deny-b", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{allowedUser.GetName(), denied},
+			NodeLabels: types.Labels{
+				"*": []string{types.Wildcard},
+			},
+		},
+		Deny: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"pool": []string{"b"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = srv.Auth().UpsertRole(ctx, roleB)
+	require.NoError(t, err)
+
+	deniedUser, err := types.NewUser("denied")
+	require.NoError(t, err)
+
+	deniedUser.AddRole(roleA.GetName())
+	deniedUser.AddRole(roleB.GetName())
+
+	err = srv.Auth().UpsertUser(deniedUser)
+	require.NoError(t, err)
+
+	// insert nodes with different labels
+	insertNodes := func(ctx context.Context, t *testing.T, srv *Server, nodeCount int, labels map[string]string) {
+		for i := 0; i < nodeCount; i++ {
+			name := uuid.NewString()
+			addr := fmt.Sprintf("node-%s.example.com", name)
+
+			node := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      name,
+					Namespace: defaults.Namespace,
+					Labels:    labels,
+				},
+				Spec: types.ServerSpecV2{
+					Addr:       addr,
+					PublicAddr: addr,
+				},
+			}
+
+			_, err := srv.UpsertNode(ctx, node)
+			require.NoError(t, err)
+		}
+	}
+	insertNodes(context.Background(), t, srv.Auth(), 1000, map[string]string{"pool": "a"})
+	insertNodes(context.Background(), t, srv.Auth(), 1000, map[string]string{"pool": "b"})
+	insertNodes(context.Background(), t, srv.Auth(), 1000, map[string]string{"pool": "c"})
+	insertNodes(context.Background(), t, srv.Auth(), 1000, map[string]string{"pool": "d"})
+	insertNodes(context.Background(), t, srv.Auth(), 1000, map[string]string{"pool": "e"})
+
+	// get a client for the two users
+	allowedClt, err := srv.NewClient(TestUser(allowedUser.GetName()))
+	require.NoError(t, err)
+
+	deniedClt, err := srv.NewClient(TestUser(deniedUser.GetName()))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		client   *Client
+		expected int
+	}{
+		{
+			name:     "all allowed",
+			client:   allowedClt,
+			expected: nodeCount,
+		},
+		{
+			name:     "restricted access",
+			client:   deniedClt,
+			expected: 3_000,
+		},
+	}
+
+	// ensure that both users can see the correct number of resources for their roles
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var resp *types.ListResourcesResponse
+			var nodes []types.ResourceWithLabels
+			for {
+				key := ""
+				if resp != nil {
+					key = resp.NextKey
+				}
+
+				resp, err = tt.client.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: types.KindNode,
+					StartKey:     key,
+					Limit:        defaults.DefaultChunkSize,
+				})
+				require.NoError(t, err)
+
+				nodes = append(nodes, resp.Resources...)
+
+				if resp.NextKey == "" {
+					break
+				}
+			}
+
+			require.Len(t, nodes, nodeCount, "received unexpected node count of %d", len(nodes))
+		})
+	}
+}
