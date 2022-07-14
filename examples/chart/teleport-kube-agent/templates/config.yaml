@@ -22,8 +22,8 @@ data:
     teleport:
   {{- if .Values.joinParams }}
       join_params:
-        token_name: "${{ .Values.joinParams.tokenName }}"
-        method: "${{ .Values.joinParams.method }}"
+        token_name: "{{ .Values.joinParams.tokenName }}"
+        method: "{{ .Values.joinParams.method }}"
   {{- else }}
       auth_token: "/etc/teleport-secrets/auth-token"
   {{- end }}
