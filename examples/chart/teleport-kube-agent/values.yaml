@@ -19,9 +19,7 @@ roles: "kube"
 # joinParams:
 #   tokenName: "iam-token"
 #   method: "iam"
-joinParams:
-  tokenName: ""
-  method: ""
+joinParams: {}
 
 ################################################################
 # Values that must be provided if Kubernetes access is enabled.
